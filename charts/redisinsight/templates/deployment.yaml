@@ -29,38 +29,48 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       volumes:
         - name: redisinsight
-{{ if .Values.persistentVolumeClaim.create }}
+          {{- if .Values.persistentVolumeClaim.create }}
           persistentVolumeClaim:
             claimName: {{ include "redisinsight-chart.fullname" . }}-data
-{{ else }}
+          {{- else }}
           emptyDir: {}
-{{ end }}
+          {{- end }}
       containers:
-        - env:
-            - name: RILOGLEVEL
-              value: DEBUG
-            - name: RITRUSTEDORIGINS
-              value: {{ .Values.trustedOrigins }}
-            - name: APP_FOLDER_ABSOLUTE_PATH
-              value: {{ .Values.volumeMount.mountPath }}
-          name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: RI_LOG_LEVEL
+              value: "{{ .Values.redisinsight.logLevel }}"
+            - name: RI_FILES_LOGGER
+              value: "false"
+            - name: RI_STDOUT_LOGGER
+              value: "true"
+            {{- if .Values.redisinsight.proxyPath }}
+            - name: RI_PROXY_PATH
+              value: "{{ .Values.redisinsight.proxyPath }}"
+            {{- end}}
+          {{- if gt (len .Values.extraEnv) 0 }}
+          {{- .Values.extraEnv | toYaml | nindent 12 }}
+          {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
               protocol: TCP
+          {{- if .Values.livenessProbe.enabled }}
           livenessProbe:
-            {{- toYaml .Values.livenessProbe | nindent 12 }}
+            {{- $httpPath := fromJson (tpl "{ \"httpGet\": { \"path\": \"{{ .Values.redisinsight.proxyPath }}{{ .Values.livenessProbeDefault.httpGet.path }}\" }}" .) }}
+            {{- toYaml (merge .Values.livenessProbe $httpPath .Values.livenessProbeDefault) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.readinessProbe.enabled }}
           readinessProbe:
-            {{- toYaml .Values.readinessProbe | nindent 12 }}
+            {{- $httpPath := fromJson (tpl "{ \"httpGet\": { \"path\": \"{{ .Values.redisinsight.proxyPath }}{{ .Values.readinessProbeDefault.httpGet.path }}\" }}" .) }}
+            {{- toYaml (merge .Values.readinessProbe $httpPath .Values.readinessProbeDefault) | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          volumeMounts:
-            - name: redisinsight
-              mountPath: {{ .Values.volumeMount.mountPath }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

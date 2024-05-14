@@ -10,10 +10,10 @@ fullnameOverride: ""
 replicaCount: 1
 
 image:
-  repository: heywood8/redisinsight
+  repository: redis/redisinsight
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+  tag: "2.48.0"
 
 # Set imagePullSecret if you use image from private repository
 imagePullSecrets: []
@@ -46,7 +46,7 @@ securityContext:
 
 service:
   type: ClusterIP
-  port: 5000
+  port: 5540
 
 ingress:
   enabled: false
@@ -91,15 +91,40 @@ volumeMount:
   # Set to /db/ for redisinsight versions < 2
   mountPath: /redisinsight/
 
-livenessProbe:
-  tcpSocket:
+livenessProbeDefault:
+  httpGet:
+    path: /api/health
     port: http
   periodSeconds: 10
   failureThreshold: 2
+livenessProbe:
+  enabled: true
 
-readinessProbe:
-  tcpSocket:
+readinessProbeDefault:
+  httpGet:
+    path: /api/health
     port: http
   initialDelaySeconds: 15
   periodSeconds: 10
   failureThreshold: 2
+readinessProbe:
+  enabled: true
+
+extraEnv: []
+# - name: VAR_NAME
+#   value: var_value
+# - name: VAR_NAME_FROM_CONFIGMAP
+#   valueFrom:
+#     configMapKeyRef:
+#       name: redisinsight
+#       key: email
+
+envFrom: [] # not supported yet
+# - type: secret
+#   name: redisinsight-secret
+# - type: configMap
+#   name: redisinsight-cm
+
+redisinsight:
+  logLevel: info
+  proxyPath: ""
